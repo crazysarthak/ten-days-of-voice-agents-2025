@@ -1,3 +1,14 @@
+# My 10 Days of Voice Agents Challenge
+
+## Progress
+
+### Day 1 ✅ - Setup Complete
+- Set up the starter voice agent
+- Technologies used: LiveKit, Murf Falcon TTS, Deepgram STT, Google Gemini
+- [LinkedIn Post]()
+
+---
+
 # AI Voice Agents Challenge - Starter Repository
 
 Welcome to the **AI Voice Agents Challenge** by [murf.ai](https://murf.ai)!

@@ -5,7 +5,7 @@
 ### Day 1 ✅ - Setup Complete
 - Set up the starter voice agent
 - Technologies used: LiveKit, Murf Falcon TTS, Deepgram STT, Google Gemini
-- [LinkedIn Post]()
+- [LinkedIn Post](https://www.linkedin.com/posts/sarthak-varshney-791468390_murfaivoiceagentschallenge-10daysofaivoiceagents-activity-7397753958754336768-m97-?utm_source=share&utm_medium=member_desktop&rcm=ACoAAGAtEF0B6Jg8_80i7FuLmuPx0eIzYqxk7bk)
 
 ---
 

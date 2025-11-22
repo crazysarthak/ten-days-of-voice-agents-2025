@@ -7,6 +7,13 @@
 - Technologies used: LiveKit, Murf Falcon TTS, Deepgram STT, Google Gemini
 - [LinkedIn Post](https://www.linkedin.com/posts/sarthak-varshney-791468390_murfaivoiceagentschallenge-10daysofaivoiceagents-activity-7397753958754336768-m97-?utm_source=share&utm_medium=member_desktop&rcm=ACoAAGAtEF0B6Jg8_80i7FuLmuPx0eIzYqxk7bk)
 
+### Day 2 ✅ - Coffee Shop Barista Agent
+- Built a friendly barista that takes coffee orders via voice
+- Agent asks for: drink type, size, milk, extras, customer name
+- Saves completed orders to JSON file
+- Code: `backend/src/agent.py`
+- Orders saved in: `backend/orders/`
+
 ---
 
 # AI Voice Agents Challenge - Starter Repository

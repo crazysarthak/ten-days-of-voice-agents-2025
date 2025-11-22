@@ -1,4 +1,7 @@
 import logging
+import json
+import os
+from datetime import datetime
 
 from dotenv import load_dotenv
 from livekit.agents import (
@@ -12,8 +15,8 @@ from livekit.agents import (
     cli,
     metrics,
     tokenize,
-    # function_tool,
-    # RunContext
+    function_tool,
+    RunContext
 )
 from livekit.plugins import murf, silero, google, deepgram, noise_cancellation
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
@@ -22,32 +25,178 @@ logger = logging.getLogger("agent")
 
 load_dotenv(".env.local")
 
+# Order state - tracks the current coffee order
+order_state = {
+    "drinkType": None,
+    "size": None,
+    "milk": None,
+    "extras": [],
+    "name": None
+}
 
-class Assistant(Agent):
+def reset_order():
+    """Reset order state for a new order"""
+    global order_state
+    order_state = {
+        "drinkType": None,
+        "size": None,
+        "milk": None,
+        "extras": [],
+        "name": None
+    }
+
+def get_missing_fields():
+    """Get list of fields that still need to be filled"""
+    missing = []
+    if not order_state["drinkType"]:
+        missing.append("drink type")
+    if not order_state["size"]:
+        missing.append("size")
+    if not order_state["milk"]:
+        missing.append("milk preference")
+    if not order_state["name"]:
+        missing.append("name for the order")
+    return missing
+
+
+class CoffeeBarista(Agent):
     def __init__(self) -> None:
         super().__init__(
-            instructions="""You are a helpful voice AI assistant. The user is interacting with you via voice, even if you perceive the conversation as text.
-            You eagerly assist users with their questions by providing information from your extensive knowledge.
-            Your responses are concise, to the point, and without any complex formatting or punctuation including emojis, asterisks, or other symbols.
-            You are curious, friendly, and have a sense of humor.""",
+            instructions="""You are a friendly and enthusiastic coffee shop barista at "Brew Haven Cafe". 
+            
+Your job is to take coffee orders from customers through voice conversation.
+
+MENU OPTIONS:
+- Drink Types: Espresso, Americano, Latte, Cappuccino, Mocha, Macchiato, Cold Brew, Iced Coffee, Hot Chocolate, Chai Latte
+- Sizes: Small, Medium, Large
+- Milk Options: Regular, Oat, Almond, Soy, Coconut, Skim, None (for black coffee)
+- Extras: Whipped Cream, Extra Shot, Vanilla Syrup, Caramel Syrup, Hazelnut Syrup, Chocolate Drizzle, Cinnamon
+
+BEHAVIOR:
+1. Greet customers warmly when they arrive
+2. Ask what drink they would like to order
+3. Ask clarifying questions ONE AT A TIME until you have: drink type, size, milk preference, and customer name
+4. For extras, ask if they want to add anything extra (whipped cream, syrups, etc.) - this is optional
+5. Once you have all required information, use the update_order tool to save each field
+6. When the order is complete, use the save_order tool to finalize it
+7. Confirm the complete order back to the customer
+
+IMPORTANT:
+- Be conversational and friendly, not robotic
+- Ask only ONE question at a time
+- Use the tools to update and save the order
+- Keep responses concise and natural for voice
+- Don't use emojis, asterisks, or special formatting
+- If customer says "no extras" or similar, that's fine - extras are optional""",
         )
 
-    # To add tools, use the @function_tool decorator.
-    # Here's an example that adds a simple weather tool.
-    # You also have to add `from livekit.agents import function_tool, RunContext` to the top of this file
-    # @function_tool
-    # async def lookup_weather(self, context: RunContext, location: str):
-    #     """Use this tool to look up current weather information in the given location.
-    #
-    #     If the location is not supported by the weather service, the tool will indicate this. You must tell the user the location's weather is unavailable.
-    #
-    #     Args:
-    #         location: The location to look up weather information for (e.g. city name)
-    #     """
-    #
-    #     logger.info(f"Looking up weather for {location}")
-    #
-    #     return "sunny with a temperature of 70 degrees."
+    @function_tool
+    async def update_order(
+        self,
+        context: RunContext,
+        field: str,
+        value: str
+    ):
+        """Update a field in the current coffee order.
+        
+        Args:
+            field: The field to update. Must be one of: drinkType, size, milk, extras, name
+            value: The value to set for the field. For extras, this adds to the list.
+        """
+        global order_state
+        
+        field = field.lower()
+        field_map = {
+            "drinktype": "drinkType",
+            "drink_type": "drinkType",
+            "drink": "drinkType",
+            "size": "size",
+            "milk": "milk",
+            "extras": "extras",
+            "extra": "extras",
+            "name": "name",
+            "customer_name": "name"
+        }
+        
+        actual_field = field_map.get(field, field)
+        
+        if actual_field == "extras":
+            if value.lower() not in ["none", "no", "nothing"]:
+                order_state["extras"].append(value)
+            logger.info(f"Added extra: {value}")
+        elif actual_field in order_state:
+            order_state[actual_field] = value
+            logger.info(f"Updated {actual_field}: {value}")
+        else:
+            return f"Unknown field: {field}"
+        
+        missing = get_missing_fields()
+        if missing:
+            return f"Order updated. Still need: {', '.join(missing)}"
+        else:
+            return "Order complete! All required fields are filled. Please use save_order to finalize."
+
+    @function_tool
+    async def save_order(self, context: RunContext):
+        """Save the completed order to a JSON file. Call this when all required fields are filled."""
+        global order_state
+        
+        missing = get_missing_fields()
+        if missing:
+            return f"Cannot save order yet. Still need: {', '.join(missing)}"
+        
+        # Create orders directory if it doesn't exist
+        os.makedirs("orders", exist_ok=True)
+        
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"orders/order_{timestamp}.json"
+        
+        # Prepare order data
+        order_data = {
+            "order": order_state.copy(),
+            "timestamp": datetime.now().isoformat(),
+            "status": "completed"
+        }
+        
+        # Save to JSON file
+        with open(filename, "w") as f:
+            json.dump(order_data, f, indent=2)
+        
+        logger.info(f"Order saved to {filename}")
+        
+        # Create order summary
+        extras_text = ", ".join(order_state["extras"]) if order_state["extras"] else "none"
+        summary = f"""Order saved successfully!
+        
+Order for: {order_state['name']}
+Drink: {order_state['size']} {order_state['drinkType']}
+Milk: {order_state['milk']}
+Extras: {extras_text}
+
+Order saved to {filename}"""
+        
+        # Reset for next order
+        reset_order()
+        
+        return summary
+
+    @function_tool
+    async def get_order_status(self, context: RunContext):
+        """Get the current status of the order being taken."""
+        missing = get_missing_fields()
+        extras_text = ", ".join(order_state["extras"]) if order_state["extras"] else "none yet"
+        
+        status = f"""Current order status:
+Drink: {order_state['drinkType'] or 'not set'}
+Size: {order_state['size'] or 'not set'}
+Milk: {order_state['milk'] or 'not set'}
+Extras: {extras_text}
+Name: {order_state['name'] or 'not set'}
+
+Missing fields: {', '.join(missing) if missing else 'None - order ready to save!'}"""
+        
+        return status
 
 
 def prewarm(proc: JobProcess):
@@ -55,51 +204,24 @@ def prewarm(proc: JobProcess):
 
 
 async def entrypoint(ctx: JobContext):
-    # Logging setup
-    # Add any other context you want in all log entries here
     ctx.log_context_fields = {
         "room": ctx.room.name,
     }
 
-    # Set up a voice AI pipeline using OpenAI, Cartesia, AssemblyAI, and the LiveKit turn detector
     session = AgentSession(
-        # Speech-to-text (STT) is your agent's ears, turning the user's speech into text that the LLM can understand
-        # See all available models at https://docs.livekit.io/agents/models/stt/
         stt=deepgram.STT(model="nova-3"),
-        # A Large Language Model (LLM) is your agent's brain, processing user input and generating a response
-        # See all available models at https://docs.livekit.io/agents/models/llm/
-        llm=google.LLM(
-                model="gemini-2.5-flash",
-            ),
-        # Text-to-speech (TTS) is your agent's voice, turning the LLM's text into speech that the user can hear
-        # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/
+        llm=google.LLM(model="gemini-2.5-flash"),
         tts=murf.TTS(
-                voice="en-US-matthew", 
-                style="Conversation",
-                tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
-                text_pacing=True
-            ),
-        # VAD and turn detection are used to determine when the user is speaking and when the agent should respond
-        # See more at https://docs.livekit.io/agents/build/turns
+            voice="en-US-matthew", 
+            style="Conversation",
+            tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
+            text_pacing=True
+        ),
         turn_detection=MultilingualModel(),
         vad=ctx.proc.userdata["vad"],
-        # allow the LLM to generate a response while waiting for the end of turn
-        # See more at https://docs.livekit.io/agents/build/audio/#preemptive-generation
         preemptive_generation=True,
     )
 
-    # To use a realtime model instead of a voice pipeline, use the following session setup instead.
-    # (Note: This is for the OpenAI Realtime API. For other providers, see https://docs.livekit.io/agents/models/realtime/))
-    # 1. Install livekit-agents[openai]
-    # 2. Set OPENAI_API_KEY in .env.local
-    # 3. Add `from livekit.plugins import openai` to the top of this file
-    # 4. Use the following session setup instead of the version above
-    # session = AgentSession(
-    #     llm=openai.realtime.RealtimeModel(voice="marin")
-    # )
-
-    # Metrics collection, to measure pipeline performance
-    # For more information, see https://docs.livekit.io/agents/build/metrics/
     usage_collector = metrics.UsageCollector()
 
     @session.on("metrics_collected")
@@ -113,25 +235,14 @@ async def entrypoint(ctx: JobContext):
 
     ctx.add_shutdown_callback(log_usage)
 
-    # # Add a virtual avatar to the session, if desired
-    # # For other providers, see https://docs.livekit.io/agents/models/avatar/
-    # avatar = hedra.AvatarSession(
-    #   avatar_id="...",  # See https://docs.livekit.io/agents/models/avatar/plugins/hedra
-    # )
-    # # Start the avatar and wait for it to join
-    # await avatar.start(session, room=ctx.room)
-
-    # Start the session, which initializes the voice pipeline and warms up the models
     await session.start(
-        agent=Assistant(),
+        agent=CoffeeBarista(),
         room=ctx.room,
         room_input_options=RoomInputOptions(
-            # For telephony applications, use `BVCTelephony` for best results
             noise_cancellation=noise_cancellation.BVC(),
         ),
     )
 
-    # Join the room and connect to the user
     await ctx.connect()
 
 

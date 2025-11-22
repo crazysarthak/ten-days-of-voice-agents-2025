@@ -1,0 +1,13 @@
+{
+  "order": {
+    "drinkType": "Cappuccino",
+    "size": "Large",
+    "milk": "Regular",
+    "extras": [
+      "Whipped Cream"
+    ],
+    "name": "Ryan"
+  },
+  "timestamp": "2025-11-23T00:28:04.699234",
+  "status": "completed"
+}

@@ -1,0 +1,14 @@
+{
+  "order": {
+    "drinkType": "Cappuccino",
+    "size": "Large",
+    "milk": "Almond",
+    "extras": [
+      "Caramel Syrup",
+      "Whipped Cream"
+    ],
+    "name": "Sarta"
+  },
+  "timestamp": "2025-11-23T00:01:41.556459",
+  "status": "completed"
+}

@@ -1,0 +1,13 @@
+{
+  "order": {
+    "drinkType": "Latte",
+    "size": "Medium",
+    "milk": "Oat",
+    "extras": [
+      "Vanilla Syrup"
+    ],
+    "name": "Hard"
+  },
+  "timestamp": "2025-11-22T23:54:47.000706",
+  "status": "completed"
+}

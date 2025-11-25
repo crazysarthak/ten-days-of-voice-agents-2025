@@ -1,0 +1,16 @@
+[
+  {
+    "mood": "a bit tired, but okay",
+    "energy": "low (4/10)",
+    "stress_factors": [
+      "big presentation coming up tomorrow"
+    ],
+    "objectives": [
+      "finish preparing my presentation",
+      "go for a short walk",
+      "get to bed early"
+    ],
+    "timestamp": "2025-11-24T20:39:39.080904",
+    "summary": "User is feeling tired with low energy due to a presentation tomorrow. Objectives are to finish presentation prep, go for a short walk, and get to bed early. Suggested a short break before prep."
+  }
+]

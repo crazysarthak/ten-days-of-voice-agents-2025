@@ -1,0 +1,32 @@
+[
+  {
+    "id": "variables",
+    "title": "Variables",
+    "summary": "Variables are like labeled containers that store values in programming. Think of them as boxes with names on them - you can put data inside, change it later, and use it whenever you need it. For example, 'age = 25' creates a variable called 'age' that stores the number 25. Variables are essential because they let you reuse values throughout your code without typing them over and over.",
+    "sample_question": "What is a variable and why is it useful in programming?"
+  },
+  {
+    "id": "loops",
+    "title": "Loops",
+    "summary": "Loops let you repeat actions multiple times without writing the same code over and over. There are two main types: 'for loops' run a specific number of times (like 'for i in range(5)' runs 5 times), while 'while loops' keep running as long as a condition is true (like 'while count < 10'). Loops are powerful because they let you process lists, repeat tasks, and automate repetitive actions efficiently.",
+    "sample_question": "Explain the difference between a for loop and a while loop. When would you use each?"
+  },
+  {
+    "id": "functions",
+    "title": "Functions",
+    "summary": "Functions are reusable blocks of code that perform specific tasks. You define a function once with a name and parameters, then call it whenever you need that task done. For example, 'def greet(name): return \"Hello \" + name' creates a function that greets people. Functions make code organized, reusable, and easier to test. They're like recipes - write once, use many times.",
+    "sample_question": "What is a function and what are the benefits of using functions in your code?"
+  },
+  {
+    "id": "conditionals",
+    "title": "Conditionals (If/Else)",
+    "summary": "Conditionals let your code make decisions based on conditions. The 'if' statement checks if something is true and runs code if it is. 'else' runs code when the condition is false. 'elif' checks additional conditions. For example: 'if age >= 18: print(\"Adult\") else: print(\"Minor\")'. Conditionals are essential for creating programs that respond differently to different situations.",
+    "sample_question": "How do if-else statements work? Give an example of when you'd use them."
+  },
+  {
+    "id": "lists",
+    "title": "Lists and Arrays",
+    "summary": "Lists (or arrays) are collections that store multiple values in a single variable. Think of a list as a numbered sequence of items, like a shopping list. In Python, you create lists with square brackets: 'fruits = [\"apple\", \"banana\", \"orange\"]'. You can add items, remove them, access them by position (index), and loop through them. Lists are perfect for managing groups of related data.",
+    "sample_question": "What is a list and how do you access individual items in a list?"
+  }
+]

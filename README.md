@@ -14,6 +14,14 @@
 - Code: `backend/src/agent.py`
 - Orders saved in: `backend/orders/`
 
+### Day 3 ✅ - Health & Wellness Voice Companion
+- Created a supportive daily check-in companion
+- Asks about mood, energy, stress factors, and daily objectives
+- Provides grounded, non-medical advice
+- Persists check-ins to `wellness_log.json`
+- References previous sessions for continuity
+- Code: `backend/src/agent.py`
+
 ---
 
 # AI Voice Agents Challenge - Starter Repository

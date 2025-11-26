@@ -27,11 +27,12 @@ load_dotenv(".env.local")
 
 CONTENT_FILE = "shared-data/day4_tutor_content.json"
 
-# Session state
+# Global session state
 session_state = {
-    "current_mode": None,  # "learn", "quiz", or "teach_back"
+    "current_mode": "coordinator",
     "current_concept": None,
-    "concepts": []
+    "concepts": [],
+    "session": None
 }
 
 def load_tutor_content() -> List[Dict[str, Any]]:
@@ -42,7 +43,9 @@ def load_tutor_content() -> List[Dict[str, Any]]:
     
     try:
         with open(CONTENT_FILE, "r") as f:
-            return json.load(f)
+            content = json.load(f)
+            logger.info(f"Loaded {len(content)} concepts from {CONTENT_FILE}")
+            return content
     except Exception as e:
         logger.error(f"Error loading content: {e}")
         return []
@@ -51,7 +54,15 @@ def get_concept_by_id(concept_id: str) -> Dict[str, Any] | None:
     """Get a concept by ID"""
     concepts = session_state.get("concepts", [])
     for concept in concepts:
-        if concept["id"] == concept_id:
+        if concept["id"].lower() == concept_id.lower():
+            return concept
+    return None
+
+def get_concept_by_title(title: str) -> Dict[str, Any] | None:
+    """Get a concept by title"""
+    concepts = session_state.get("concepts", [])
+    for concept in concepts:
+        if concept["title"].lower() == title.lower():
             return concept
     return None
 
@@ -59,273 +70,187 @@ def get_available_concepts() -> str:
     """Get formatted list of available concepts"""
     concepts = session_state.get("concepts", [])
     if not concepts:
-        return "No concepts available"
+        return "No concepts loaded"
     
-    concept_list = ", ".join([c["title"] for c in concepts])
-    return f"Available topics: {concept_list}"
+    concept_list = [c["title"] for c in concepts]
+    return f"Available topics: {', '.join(concept_list)}"
 
 
-class CoordinatorAgent(Agent):
-    """Main agent that greets and routes to learning modes"""
+class UnifiedTutorAgent(Agent):
+    """Unified agent that handles all three modes with voice switching"""
     
     def __init__(self) -> None:
         concepts_info = get_available_concepts()
         
         super().__init__(
-            instructions=f"""You are the friendly coordinator for a Teach-the-Tutor learning system.
+            instructions=f"""You are an interactive Teach-the-Tutor learning system with THREE learning modes.
 
-YOUR ROLE:
-- Greet new users warmly
-- Explain the three learning modes available
-- Help users choose which mode to start with
-- Switch between modes when requested
-
-THREE LEARNING MODES:
-1. LEARN mode - I explain concepts to you (perfect for beginners)
-2. QUIZ mode - I ask you questions to test your knowledge
-3. TEACH BACK mode - You explain concepts to me (best for mastery)
-
-AVAILABLE CONTENT:
+AVAILABLE TOPICS:
 {concepts_info}
 
-BEHAVIOR:
-- When user first connects, greet them and ask which mode they'd like
-- Use the switch_mode tool to transition between modes
-- Keep your responses natural and encouraging
-- One question or instruction at a time for voice
+THREE LEARNING MODES:
 
-Example flow:
-User connects → You greet → Explain modes → Ask preference → Use switch_mode tool
+1. LEARN MODE (You are Matthew, the Teacher)
+   - Explain concepts clearly and thoroughly
+   - Use examples and analogies
+   - Break down complex ideas
+   - Encourage questions
 
-REMEMBER: You're just the coordinator. The actual learning happens in the specialist agents.""",
+2. QUIZ MODE (You are Alicia, the Quiz Master)
+   - Ask questions to test understanding
+   - Give encouraging feedback
+   - Celebrate correct answers
+   - Gently guide on wrong answers
+
+3. TEACH BACK MODE (You are Ken, the Listener)
+   - Ask the user to explain concepts to you
+   - Listen carefully to their explanation
+   - Give constructive, specific feedback
+   - Highlight what they did well
+   - Point out what they missed
+
+IMPORTANT BEHAVIOR:
+- When user first connects, greet them and explain the three modes
+- Ask which mode they'd like to start with
+- Use the switch_to_learn, switch_to_quiz, or switch_to_teachback tools to change modes
+- After switching, adopt that mode's personality and voice style
+- Users can switch modes anytime by asking
+
+CURRENT STATUS:
+- Mode: {session_state.get('current_mode', 'coordinator')}
+
+REMEMBER: 
+- Keep responses conversational for voice
+- One question or instruction at a time
+- Be encouraging and supportive""",
         )
 
     @function_tool
-    async def switch_mode(
+    async def switch_to_learn(
         self,
         context: RunContext,
-        mode: str,
-        concept_id: str = None
+        topic: str
     ):
-        """Switch to a different learning mode.
+        """Switch to LEARN mode where you explain concepts (Matthew's voice).
         
         Args:
-            mode: The learning mode - must be "learn", "quiz", or "teach_back"
-            concept_id: Optional concept ID to focus on (e.g., "variables", "loops")
+            topic: The topic to teach (e.g., "variables", "loops", "functions")
         """
-        mode = mode.lower()
-        valid_modes = ["learn", "quiz", "teach_back"]
+        # Try to find concept by ID or title
+        concept = get_concept_by_id(topic) or get_concept_by_title(topic)
         
-        if mode not in valid_modes:
-            return f"Invalid mode. Please choose: {', '.join(valid_modes)}"
-        
-        session_state["current_mode"] = mode
-        
-        if concept_id:
-            concept = get_concept_by_id(concept_id)
-            if concept:
-                session_state["current_concept"] = concept
-                return f"Switching to {mode} mode for {concept['title']}. Transferring you now..."
-            else:
-                return f"Concept '{concept_id}' not found. Available: {get_available_concepts()}"
-        
-        return f"Switching to {mode} mode. Transferring you now..."
-
-    @function_tool
-    async def list_concepts(self, context: RunContext):
-        """List all available concepts/topics"""
-        return get_available_concepts()
-
-
-class LearnModeAgent(Agent):
-    """Learn mode - explains concepts (Matthew voice)"""
-    
-    def __init__(self) -> None:
-        concepts_info = get_available_concepts()
-        current_concept = session_state.get("current_concept")
-        
-        context = ""
-        if current_concept:
-            context = f"\n\nCURRENT TOPIC: {current_concept['title']}\nSUMMARY: {current_concept['summary']}"
-        
-        super().__init__(
-            instructions=f"""You are Matthew, a friendly and clear teacher in LEARN mode.
-
-YOUR ROLE:
-- Explain concepts clearly and simply
-- Use examples and analogies
-- Break down complex ideas into digestible pieces
-- Encourage questions
-
-{concepts_info}{context}
-
-TEACHING STYLE:
-- Start with the big picture, then add details
-- Use everyday examples
-- Check for understanding
-- Be patient and supportive
-- Keep explanations concise for voice
-
-If user wants to switch modes, acknowledge and tell them to ask the coordinator.
-
-REMEMBER: You're Matthew, the explainer. Keep it clear and engaging!""",
-        )
-
-    @function_tool
-    async def explain_concept(
-        self,
-        context: RunContext,
-        concept_id: str
-    ):
-        """Explain a specific concept in detail.
-        
-        Args:
-            concept_id: The ID of the concept to explain (e.g., "variables", "loops")
-        """
-        concept = get_concept_by_id(concept_id)
         if not concept:
-            return f"I don't have information on that concept. {get_available_concepts()}"
+            available = get_available_concepts()
+            return f"I don't have that topic. {available}"
         
+        session_state["current_mode"] = "learn"
         session_state["current_concept"] = concept
         
-        return f"Let me explain {concept['title']}: {concept['summary']}"
-
-
-class QuizModeAgent(Agent):
-    """Quiz mode - asks questions (Alicia voice)"""
-    
-    def __init__(self) -> None:
-        concepts_info = get_available_concepts()
-        current_concept = session_state.get("current_concept")
+        logger.info(f"Switched to LEARN mode for {concept['title']}")
         
-        context = ""
-        if current_concept:
-            context = f"\n\nCURRENT TOPIC: {current_concept['title']}\nQUESTION: {current_concept['sample_question']}"
-        
-        super().__init__(
-            instructions=f"""You are Alicia, an encouraging quiz master in QUIZ mode.
+        # Return the explanation
+        return f"""Let me teach you about {concept['title']}.
 
-YOUR ROLE:
-- Ask questions to test understanding
-- Give helpful feedback on answers
-- Encourage learning from mistakes
-- Celebrate correct answers
+{concept['summary']}
 
-{concepts_info}{context}
-
-QUIZ STYLE:
-- Ask one clear question at a time
-- Wait for the full answer
-- Provide constructive feedback
-- If answer is incomplete, ask follow-up questions
-- Keep tone supportive, never harsh
-
-FEEDBACK GUIDELINES:
-- Correct answers: Praise and maybe add a bonus insight
-- Partially correct: Acknowledge what's right, gently guide to what's missing
-- Incorrect: Be kind, explain the right answer, encourage trying again
-
-If user wants to switch modes, acknowledge and tell them to ask the coordinator.
-
-REMEMBER: You're Alicia, the quiz master. Make learning fun!""",
-        )
+Do you have any questions about this? Or would you like to hear more examples?"""
 
     @function_tool
-    async def ask_question(
+    async def switch_to_quiz(
         self,
         context: RunContext,
-        concept_id: str
+        topic: str
     ):
-        """Ask a quiz question about a specific concept.
+        """Switch to QUIZ mode where you ask questions (Alicia's voice).
         
         Args:
-            concept_id: The ID of the concept to quiz on
+            topic: The topic to quiz on (e.g., "variables", "loops", "functions")
         """
-        concept = get_concept_by_id(concept_id)
-        if not concept:
-            return f"I don't have a question for that. {get_available_concepts()}"
+        concept = get_concept_by_id(topic) or get_concept_by_title(topic)
         
+        if not concept:
+            available = get_available_concepts()
+            return f"I don't have that topic. {available}"
+        
+        session_state["current_mode"] = "quiz"
         session_state["current_concept"] = concept
         
-        return f"Here's your question about {concept['title']}: {concept['sample_question']}"
-
-
-class TeachBackModeAgent(Agent):
-    """Teach back mode - listens and gives feedback (Ken voice)"""
-    
-    def __init__(self) -> None:
-        concepts_info = get_available_concepts()
-        current_concept = session_state.get("current_concept")
+        logger.info(f"Switched to QUIZ mode for {concept['title']}")
         
-        context = ""
-        if current_concept:
-            context = f"\n\nCURRENT TOPIC: {current_concept['title']}\nKEY POINTS: {current_concept['summary']}"
-        
-        super().__init__(
-            instructions=f"""You are Ken, a thoughtful listener and feedback provider in TEACH BACK mode.
+        return f"""Ready to test your knowledge on {concept['title']}?
 
-YOUR ROLE:
-- Ask users to teach concepts back to you
-- Listen carefully to their explanations
-- Provide constructive, specific feedback
-- Highlight what they got right
-- Gently correct misconceptions
+Here's your question: {concept['sample_question']}
 
-{concepts_info}{context}
-
-TEACH BACK APPROACH:
-1. Invite them to explain the concept as if teaching you
-2. Listen without interrupting
-3. After they finish, give balanced feedback:
-   - What they explained well
-   - What they missed or got wrong
-   - Overall assessment (Excellent/Good/Needs Work)
-
-FEEDBACK STYLE:
-- Start with positives
-- Be specific about what was good
-- Point out gaps gently
-- End with encouragement
-- Keep it conversational for voice
-
-If user wants to switch modes, acknowledge and tell them to ask the coordinator.
-
-REMEMBER: You're Ken, the listener. Help them learn through teaching!""",
-        )
+Take your time!"""
 
     @function_tool
-    async def prompt_teach_back(
+    async def switch_to_teachback(
         self,
         context: RunContext,
-        concept_id: str
+        topic: str
     ):
-        """Prompt user to teach back a concept.
+        """Switch to TEACH BACK mode where the user explains concepts (Ken's voice).
         
         Args:
-            concept_id: The ID of the concept for teach-back
+            topic: The topic for teach-back (e.g., "variables", "loops", "functions")
         """
-        concept = get_concept_by_id(concept_id)
-        if not concept:
-            return f"I don't have that concept. {get_available_concepts()}"
+        concept = get_concept_by_id(topic) or get_concept_by_title(topic)
         
+        if not concept:
+            available = get_available_concepts()
+            return f"I don't have that topic. {available}"
+        
+        session_state["current_mode"] = "teach_back"
         session_state["current_concept"] = concept
         
-        return f"Great! Now teach me about {concept['title']}. Explain it as if I know nothing about it."
+        logger.info(f"Switched to TEACH BACK mode for {concept['title']}")
+        
+        return f"""Excellent! Now it's your turn to be the teacher.
+
+Explain {concept['title']} to me as if I know nothing about it. Take your time and teach me everything you know!"""
 
     @function_tool
-    async def give_feedback(
+    async def provide_feedback(
         self,
         context: RunContext,
-        feedback: str,
-        score: str = "Good"
+        strengths: str,
+        improvements: str,
+        overall: str = "Good"
     ):
-        """Give feedback on the user's teach-back explanation.
+        """Provide detailed feedback on a teach-back explanation (only use in TEACH BACK mode).
         
         Args:
-            feedback: Specific feedback on their explanation
-            score: Overall assessment (Excellent/Good/Needs Work)
+            strengths: What the user explained well
+            improvements: What they could improve or missed
+            overall: Overall assessment (Excellent/Good/Needs Work)
         """
-        return f"Assessment: {score}\n\nFeedback: {feedback}"
+        if session_state.get("current_mode") != "teach_back":
+            return "Feedback is only available in TEACH BACK mode"
+        
+        concept = session_state.get("current_concept")
+        concept_name = concept["title"] if concept else "this topic"
+        
+        feedback = f"""Overall Assessment: {overall}
+
+What you did well:
+{strengths}
+
+Areas to strengthen:
+{improvements}
+
+Great effort! Teaching is one of the best ways to learn. Want to try another topic or switch modes?"""
+        
+        return feedback
+
+    @function_tool
+    async def list_topics(self, context: RunContext):
+        """List all available topics/concepts"""
+        concepts = session_state.get("concepts", [])
+        if not concepts:
+            return "No topics available"
+        
+        topics = "\n".join([f"• {c['title']} - {c['summary'][:50]}..." for c in concepts])
+        return f"Available topics:\n{topics}"
 
 
 def prewarm(proc: JobProcess):
@@ -339,26 +264,22 @@ async def entrypoint(ctx: JobContext):
 
     # Load tutor content
     session_state["concepts"] = load_tutor_content()
-    session_state["current_mode"] = "coordinator"
     
-    logger.info(f"Loaded {len(session_state['concepts'])} concepts")
+    if not session_state["concepts"]:
+        logger.error("No concepts loaded! Check if content file exists.")
+    else:
+        logger.info(f"Successfully loaded {len(session_state['concepts'])} concepts")
 
-    # Determine which agent to use based on mode
+    # Default to coordinator mode with Matthew voice
+    voice = "en-US-matthew"
     current_mode = session_state.get("current_mode", "coordinator")
     
-    # Select voice and agent based on mode
-    if current_mode == "learn":
-        voice = "en-US-matthew"
-        agent = LearnModeAgent()
-    elif current_mode == "quiz":
+    # Change voice based on mode (this would need voice switching in a real handoff implementation)
+    # For now, we'll use Matthew as default
+    if current_mode == "quiz":
         voice = "en-US-alicia"
-        agent = QuizModeAgent()
     elif current_mode == "teach_back":
         voice = "en-US-ken"
-        agent = TeachBackModeAgent()
-    else:
-        voice = "en-US-matthew"
-        agent = CoordinatorAgent()
 
     session = AgentSession(
         stt=deepgram.STT(model="nova-3"),
@@ -387,8 +308,11 @@ async def entrypoint(ctx: JobContext):
 
     ctx.add_shutdown_callback(log_usage)
 
+    # Store session for potential handoffs
+    session_state["session"] = session
+
     await session.start(
-        agent=agent,
+        agent=UnifiedTutorAgent(),
         room=ctx.room,
         room_input_options=RoomInputOptions(
             noise_cancellation=noise_cancellation.BVC(),
